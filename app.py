@@ -60,3 +60,15 @@ with tab3:
         else:
             for issue in issues:
                 st.error(issue)
+
+st.header("🤖 Conversational AI Assistant")
+user_input = st.text_input("Ask me anything (e.g., 'Who is in Mumbai?' or 'Thermal pilots in Bangalore')")
+
+if user_input:
+    search_results = st.session_state.coord.conversational_query(user_input)
+    
+    if not search_results.empty:
+        st.write(f"**Agent:** I found {len(search_results)} matching profiles for your request:")
+        st.table(search_results)
+    else:
+        st.warning("Agent: I couldn't find any pilots matching those specific criteria. Try searching by location or skill.")
