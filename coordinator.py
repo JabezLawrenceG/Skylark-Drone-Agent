@@ -59,23 +59,24 @@ class DroneCoordinator:
         results["pilots"] = sorted(results["pilots"], key=lambda x: x['score'], reverse=True)
         results["drones"] = sorted(results["drones"], key=lambda x: x['score'], reverse=True)
         return results
+
+    # FIX: Indented this function to be part of the class
     def conversational_query(self, query):
-    query = query.lower()
-    results = []
+        query = query.lower()
+        
+        # Search for Locations
+        locations = self.pilots['location'].unique()
+        found_loc = [loc for loc in locations if loc.lower() in query]
 
-    # Search for Locations
-    locations = self.pilots['location'].unique()
-    found_loc = [loc for loc in locations if loc.lower() in query]
+        # Search for Skills
+        all_skills = ["mapping", "inspection", "thermal", "night ops"]
+        found_skills = [skill for skill in all_skills if skill in query]
 
-    # Search for Skills
-    all_skills = ["mapping", "inspection", "thermal", "night ops"]
-    found_skills = [skill for skill in all_skills if skill in query]
+        # Logic: Filter based on found keywords
+        filtered_pilots = self.pilots
+        if found_loc:
+            filtered_pilots = filtered_pilots[filtered_pilots['location'].str.contains(found_loc[0], case=False)]
+        if found_skills:
+            filtered_pilots = filtered_pilots[filtered_pilots['skills'].str.contains(found_skills[0], case=False)]
 
-    # Logic: Filter based on found keywords
-    filtered_pilots = self.pilots
-    if found_loc:
-        filtered_pilots = filtered_pilots[filtered_pilots['location'].str.contains(found_loc[0], case=False)]
-    if found_skills:
-        filtered_pilots = filtered_pilots[filtered_pilots['skills'].str.contains(found_skills[0], case=False)]
-
-    return filtered_pilots[['name', 'location', 'skills', 'status']]
+        return filtered_pilots[['name', 'location', 'skills', 'status']]
