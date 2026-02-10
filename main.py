@@ -1,5 +1,7 @@
 import gspread
 import pandas as pd
+import streamlit as st
+import json
 from google.oauth2.service_account import Credentials
 from coordinator import DroneCoordinator
 
@@ -8,7 +10,17 @@ SHEET_NAME = "Skylark_Operations_Database"
 
 def get_gspread_client():
     scope = ["https://www.googleapis.com/auth/spreadsheets", "https://www.googleapis.com/auth/drive"]
-    creds = Credentials.from_service_account_file("service_account.json", scopes=scope)
+    
+    # --- CLOUD VS LOCAL LOGIC ---
+    if "gcp_service_account" in st.secrets:
+        # Load from Streamlit Cloud Secrets
+        creds_info = json.loads(st.secrets["gcp_service_account"])
+        creds = Credentials.from_service_account_info(creds_info, scopes=scope)
+    else:
+        # Load from Local File
+        creds = Credentials.from_service_account_file("service_account.json", scopes=scope)
+    # ----------------------------
+    
     return gspread.authorize(creds)
 
 def load_coordinator():
@@ -28,14 +40,14 @@ def update_sheet_status(tab_name, id_col_name, row_id, new_status):
     # 1. Search for the ID
     cell = ws.find(row_id)
     
-    # 2. Safety Check: If ID is not found, return an error instead of crashing
+    # 2. Safety Check
     if cell is None:
-        return False, f"Error: ID '{row_id}' not found in the {tab_name} tab. Check for typos or extra spaces."
+        return False, f"Error: ID '{row_id}' not found in the {tab_name} tab."
     
-    # 3. Find the 'status' column dynamically
+    # 3. Find 'status' column dynamically
     headers = ws.row_values(1)
     if "status" not in headers:
-        return False, "Error: Could not find a column named 'status' in your sheet."
+        return False, "Error: Could not find 'status' column."
     
     status_col = headers.index("status") + 1
     
