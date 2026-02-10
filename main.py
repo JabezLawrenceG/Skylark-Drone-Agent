@@ -1,0 +1,44 @@
+import gspread
+import pandas as pd
+from google.oauth2.service_account import Credentials
+from coordinator import DroneCoordinator
+
+# Replace with your actual Google Sheet name
+SHEET_NAME = "Skylark_Operations_Database"
+
+def get_gspread_client():
+    scope = ["https://www.googleapis.com/auth/spreadsheets", "https://www.googleapis.com/auth/drive"]
+    creds = Credentials.from_service_account_file("service_account.json", scopes=scope)
+    return gspread.authorize(creds)
+
+def load_coordinator():
+    client = get_gspread_client()
+    sheet = client.open(SHEET_NAME)
+    
+    pilots = pd.DataFrame(sheet.worksheet("pilot_roster").get_all_records())
+    drones = pd.DataFrame(sheet.worksheet("drone_fleet").get_all_records())
+    missions = pd.DataFrame(sheet.worksheet("missions").get_all_records())
+    
+    return DroneCoordinator(pilots, drones, missions)
+
+def update_sheet_status(tab_name, id_col_name, row_id, new_status):
+    client = get_gspread_client()
+    ws = client.open(SHEET_NAME).worksheet(tab_name)
+    
+    # 1. Search for the ID
+    cell = ws.find(row_id)
+    
+    # 2. Safety Check: If ID is not found, return an error instead of crashing
+    if cell is None:
+        return False, f"Error: ID '{row_id}' not found in the {tab_name} tab. Check for typos or extra spaces."
+    
+    # 3. Find the 'status' column dynamically
+    headers = ws.row_values(1)
+    if "status" not in headers:
+        return False, "Error: Could not find a column named 'status' in your sheet."
+    
+    status_col = headers.index("status") + 1
+    
+    # 4. Perform update
+    ws.update_cell(cell.row, status_col, new_status)
+    return True, "Success"
