@@ -64,19 +64,47 @@ class DroneCoordinator:
     def conversational_query(self, query):
         query = query.lower()
         
-        # Search for Locations
-        locations = self.pilots['location'].unique()
-        found_loc = [loc for loc in locations if loc.lower() in query]
+        # 1. Handle Drone Queries
+        if "drone" in query or "fleet" in query:
+            filtered = self.drones
+            if "maintenance" in query or "repair" in query:
+                filtered = filtered[filtered['status'] == 'Maintenance']
+            elif "available" in query or "ready" in query:
+                filtered = filtered[filtered['status'] == 'Available']
+            
+            # Capability Search (e.g., "Which drone has LiDAR?")
+            capabilities = ["lidar", "rgb", "thermal", "mapping"]
+            found_cap = [c for c in capabilities if c in query]
+            if found_cap:
+                filtered = filtered[filtered['capabilities'].str.contains(found_cap[0], case=False)]
+            
+            return filtered[['drone_id', 'model', 'status', 'capabilities']]
 
-        # Search for Skills
-        all_skills = ["mapping", "inspection", "thermal", "night ops"]
-        found_skills = [skill for skill in all_skills if skill in query]
+        # 2. Handle Pilot Queries
+        else:
+            filtered = self.pilots
+            
+            # Status Intent
+            if "leave" in query or "off" in query:
+                filtered = filtered[filtered['status'] == 'On Leave']
+            elif "available" in query or "free" in query:
+                filtered = filtered[filtered['status'] == 'Available']
+            elif "assigned" in query or "busy" in query:
+                filtered = filtered[filtered['status'] == 'Assigned']
 
-        # Logic: Filter based on found keywords
-        filtered_pilots = self.pilots
-        if found_loc:
-            filtered_pilots = filtered_pilots[filtered_pilots['location'].str.contains(found_loc[0], case=False)]
-        if found_skills:
-            filtered_pilots = filtered_pilots[filtered_pilots['skills'].str.contains(found_skills[0], case=False)]
+            # Location Intent
+            locations = self.pilots['location'].unique()
+            found_loc = [loc for loc in locations if loc.lower() in query]
+            if found_loc:
+                filtered = filtered[filtered['location'].str.contains(found_loc[0], case=False)]
 
-        return filtered_pilots[['name', 'location', 'skills', 'status']]
+            # Skill/Cert Intent
+            skills = ["mapping", "inspection", "thermal", "night ops", "dgca"]
+            found_skills = [s for s in skills if s in query]
+            if found_skills:
+                # Checks both skills and certifications columns
+                mask = (filtered['skills'].str.contains(found_skills[0], case=False)) | \
+                       (filtered['certifications'].str.contains(found_skills[0], case=False))
+                filtered = filtered[mask]
+
+            return filtered[['name', 'location', 'skills', 'status']]
