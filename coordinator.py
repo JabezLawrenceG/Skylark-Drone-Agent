@@ -8,6 +8,9 @@ class DroneCoordinator:
         self.missions = mission_df
 
     def check_conflicts(self, pilot_id, drone_id, mission_id):
+        """
+        Detects scheduling, skill, and maintenance conflicts for a manual assignment.
+        """
         conflicts = []
         mission = self.missions[self.missions['project_id'] == mission_id].iloc[0]
         pilot = self.pilots[self.pilots['pilot_id'] == pilot_id].iloc[0]
@@ -39,40 +42,51 @@ class DroneCoordinator:
         return conflicts
 
     def find_best_matches(self, mission_id):
+        """
+        Heuristic scoring engine to match assets to a project.
+        Urgent missions get a higher weight for Availability.
+        """
         mission = self.missions[self.missions['project_id'] == mission_id].iloc[0]
+        is_urgent = mission['priority'].lower() == 'urgent'
         results = {"pilots": [], "drones": []}
 
         # Match Pilots
         for _, p in self.pilots.iterrows():
             score = 0
-            if p['status'] == 'Available': score += 5
-            if p['location'] == mission['location']: score += 10
+            if p['status'] == 'Available': 
+                score += 10 if is_urgent else 5
+            if p['location'] == mission['location']: 
+                score += 10
             results["pilots"].append({"id": p['pilot_id'], "name": p['name'], "score": score})
 
         # Match Drones
         for _, d in self.drones.iterrows():
             score = 0
-            if d['status'] == 'Available': score += 5
-            if d['location'] == mission['location']: score += 10
+            if d['status'] == 'Available': 
+                score += 10 if is_urgent else 5
+            if d['location'] == mission['location']: 
+                score += 10
             results["drones"].append({"id": d['drone_id'], "model": d['model'], "score": score})
 
         results["pilots"] = sorted(results["pilots"], key=lambda x: x['score'], reverse=True)
         results["drones"] = sorted(results["drones"], key=lambda x: x['score'], reverse=True)
         return results
 
-    # FIX: Indented this function to be part of the class
     def conversational_query(self, query):
+        """
+        A Keyword-based NLP engine to handle natural language requests.
+        Distinguishes between Drone and Pilot intents.
+        """
         query = query.lower()
         
         # 1. Handle Drone Queries
-        if "drone" in query or "fleet" in query:
+        if any(word in query for word in ["drone", "fleet", "model", "uav"]):
             filtered = self.drones
             if "maintenance" in query or "repair" in query:
                 filtered = filtered[filtered['status'] == 'Maintenance']
             elif "available" in query or "ready" in query:
                 filtered = filtered[filtered['status'] == 'Available']
             
-            # Capability Search (e.g., "Which drone has LiDAR?")
             capabilities = ["lidar", "rgb", "thermal", "mapping"]
             found_cap = [c for c in capabilities if c in query]
             if found_cap:
@@ -102,7 +116,6 @@ class DroneCoordinator:
             skills = ["mapping", "inspection", "thermal", "night ops", "dgca"]
             found_skills = [s for s in skills if s in query]
             if found_skills:
-                # Checks both skills and certifications columns
                 mask = (filtered['skills'].str.contains(found_skills[0], case=False)) | \
                        (filtered['certifications'].str.contains(found_skills[0], case=False))
                 filtered = filtered[mask]
